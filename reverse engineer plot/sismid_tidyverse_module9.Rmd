@@ -1,0 +1,38 @@
+---
+title: "SISMID Tidyverse Module 9: active learning exercise"
+output: html_document
+---
+
+QUESTION: How does the proportion of COVID-19 deaths out of all deaths vary across age groups?
+
+EXERCISE: Recreate this visual. If time allows, write 2-3 bullet points describing relevant patterns, trends, or other takeaways.
+
+DATA: Provisional COVID-19 Deaths by Week, Sex, and Age (National Center for Health Statistics; https://data.cdc.gov/d/vsak-wrfu)
+ 
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(readxl)
+
+covid19_deaths_by_age_sex_week <- read.csv("covid19_deaths_by_age_sex_week.csv") %>%
+    filter(Age.Group != "All Ages" & Sex == "All Sex") %>%
+    mutate(age_groups = case_when(Age.Group %in% c("Under 1 year", "1-4 Years", "5-14 Years") ~ "< 15 years old",
+                                  Age.Group %in% c("15-24 Years", "25-34 Years", "35-44 Years", "45-54 Years", "55-64 Years") ~ "15-64 years old",
+                                  Age.Group %in% c("65-74 Years", "75-84 Years", "85 Years and Over") ~ "65+ years old")) %>% 
+    mutate(report_date = mdy(End.Week)) %>%
+    mutate(year_month = format(report_date, "%Y-%m")) %>%
+    group_by(year_month, age_groups) %>%
+    summarize(covid_deaths = sum(COVID.19.Deaths, na.rm = TRUE), all_deaths = sum(Total.Deaths, na.rm = TRUE)) %>%
+    mutate(covid_death_pct = round((covid_deaths/all_deaths)*100, 2))
+    
+
+death_age_timeseries <- ggplot(covid19_deaths_by_age_sex_week, aes(x = year_month, y = covid_death_pct, group = age_groups, color = age_groups)) +
+                           geom_line(size = 1) +
+                           theme_classic() +
+                           theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+                           xlab("Year-Month") +
+                           ylab("Percent of total deaths attributed to COVID-19") +
+                           labs(color = "Age group") +
+                           theme(legend.position = "top")
+death_age_timeseries
+```
+ 

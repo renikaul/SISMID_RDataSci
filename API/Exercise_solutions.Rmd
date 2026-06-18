@@ -1,0 +1,414 @@
+---
+title: "Lab1_API"
+author: "RK"
+date: "2025-06-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+
+library(pacman)
+
+p_load(
+  tidyverse,
+  tidycensus,
+  httr,
+  httr2,
+  readr,
+  stringr
+)
+```
+
+# Importing Data: Working Smarter, Not Harder
+
+There are a few different ways to create data objects in R:
+ 
+ - Manually entering data
+ - Loading data from file (local or remote)
+ - Requesting data from an API 
+ 
+Any of these methods can be appropriate when developing a reproducible workflow. Manual entry might be appropriate for very small data sets (i.e. a single value), while loading data from file is commonly used when working with larger data sets. Loading remote data files might be more appropriate when data is updated at some frequency. APIs are great for large third party data sets that can also be updated at some frequency.  
+
+We will explore these methods through the following scenario. 
+
+## Real World Scenario:
+
+You're tasked with determining if MMR vaccination coverage correlates with the proportion of children eligible for free vaccinations under the Vaccines For Children program by county.
+
+This question was prompted by the recent publication of kindergarten entry vaccination coverage by county for many states by [Dong et al 2025](https://jamanetwork.com/journals/jama/article-abstract/2834892). They have made the data publicly available on a [github repository](https://github.com/CSSEGISandData/MMR_data). 
+
+After reviewing the data, you've decided the workflow should follow: 
+
+1. Load vaccination data that is posted on github
+2. Load population data from American Communities Survey (ACS)
+    - via API
+    - via tidycensus
+3. Put it together using a joining filter
+4. Visualize data
+    - heat maps
+    - scatter plot
+
+
+### 1. Loading vaccination data from github
+
+One of the great things about github is that you can load data directly into R using a URL. You can get the correct URL by navigating to the appropriate file in your web browser. Once viewing the file, click on the "Raw" icon in the upper right corner. This will take you to the correct URL to use in your read function. 
+
+
+
+```{r load vax}
+# use url() to set path to data. This avoids any issues with special characters.
+vax_url <- url("https://raw.githubusercontent.com/CSSEGISandData/MMR_data/refs/heads/main/mmr_data_us_counties.csv")
+# load data readr::read_csv
+vax <- read_csv(vax_url)
+```
+
+How is the vaccination data formatted? What states are included in the data set?
+
+```{r explore vax}
+# examine
+glimpse(vax)
+
+# return states in data set
+unique(vax$State)
+
+# return number of counties by state
+vax |>
+  count(State) |>
+  print(n = 38)
+```
+
+### 2. Loading ACS data
+
+The ACS is published by the U.S. Census Bureau. Given the bureau's mission to disseminate statistics about the American people and economy, there are robust tools for ingesting their data into your workflow. We will explore 2 methods for loading our target data. First using a API request via httr2 package, and then using one of the packages specifically designed to load U.S. Census Bureau data into R. 
+
+Our goal is to load 5 year 2023 ACS estimates of the total population under 19 (denominator), uninsured population under 19, and under 19 on public health insurance (numerator). This data is in the subject table with variable names: S2701_C02_011, S2701_C04_011, and (S2704_C02_017 + S2704_C02_018), respectively.  
+
+#### API data via httr2
+
+This package is designed for people who are familiar with APIs and most likely expecting returned data to be in a json format. The U.S. Census Bureau has worked to make building your API request as simple as possible, see this [quick guide to making API URI](https://www.census.gov/programs-surveys/acs/data/data-via-api.html).
+
+To keep things simple let's build the URI to request S2701_C02_011 estimate for all counties in Maryland (FIPS state code 24). 
+
+The minimum needed for a request is `request()` and `req_perform()`. 
+
+```{r httr2 request}
+#define as string, not <url> object because request expects string
+base_url <- "https://api.census.gov/data/"
+
+URI <-
+  request(base_url) |>
+  req_url_path_append(
+    "2023",
+    "acs",
+    "acs5",
+    "subject"
+  ) |>
+  # I() is used to escape special characters (colon and *)
+  req_url_query(
+    `get` = "S2701_C01_011E",
+    `for` = I("county:*"),
+    `in` = I("state:24")
+  )
+
+#check URI will be interpreted correctly  
+url_parse(URI$url)
+
+#perform the request
+response <-
+  URI |>
+  req_perform()
+
+#check status of response
+response
+
+#look at data that was returned
+response |>
+  resp_body_json() |>
+  glimpse()
+```
+
+This requests returns the data as a json data set which looks like a list of lists. You could go through and reshape the data into a data frame using httr2 and dplyr functions OR we could use a package that does all of it for us and more. 
+
+#### **Challenge: Use soft coding to make query more flexible**
+
+I have included skeleton code below.  If you're stuck, start by identifying components that might change frequently in the API request. 
+
+Drop your version in the zoom chat. 
+
+```{r API challenge}
+base_url <- "https://api.census.gov/data/"
+
+#Things that might change - 1) acs sample year, 2) 5 year or 1 year estimate, 3) variables
+acs_year <- 2023
+acs_time <- "acs5"
+acs_variables <- c(
+  "S2701_C04_011", # under 19 uninsured
+  "S2704_C02_017", # under 6 public insurance
+  "S2704_C02_018", # 6-18 public insurance
+  "S2701_C02_011" # under 19 population
+)
+
+
+URI <-
+  request(base_url) |>
+  req_url_path_append(
+    acs_year,
+    "acs",
+    acs_time,
+    "subject"
+  )|>
+  # I() is used to escape special characters (colon and *)
+  req_url_query(
+    #need to add E to get estimates, and M for measurement of error
+    `get` = c(paste0(acs_variables,"E"),paste0(acs_variables,"M")),
+    `for` = I("county:*"),
+    `in` = I("state:24"),
+    .multi = "comma"
+  )
+
+#check URI will be interpreted correctly  
+url_parse(URI$url)
+
+#Send request
+response <-
+  URI |>
+  req_perform()
+
+#check status of response
+response
+
+#Look at response
+response |>
+  resp_body_json() |>
+  glimpse()
+```
+
+
+#### API data specific package: tidycensus
+
+Tidycensus gets us to the data we'd like with fewer commands, plus it has additional functionality. In my opinion, `load_variables()` makes this package worth using alone. 
+
+You may have wondered how I know which variable names to use. This is a combination of knowing what table to look in (i.e. subject vs profile) and looking up the specific name either on the census website or via `load_variables()`. 
+
+```{r load variable}
+v23 <- load_variables(2023, "acs5/subject", cache = TRUE)
+
+v23
+
+v23 |>
+  filter(str_detect(name, "S2704_C02_01"))
+```
+
+Let's start building our request using tidycensus. Again, to keep it simple let's request S2701_C02_011 estimate for all counties in Maryland (FIPS state code 24) using `get_acs()`. 
+
+```{r get_acs practice}
+  get_acs(
+    geography = "county",
+    state = "MD",
+    variables = "S2701_C02_011",
+    survey = "acs5",
+    year = 2023
+  )
+```
+
+Now that we have the syntax down, let's request all four variables. 
+
+
+```{r load acs data}
+#this is an example of soft coding
+acs_variables <- c(
+  "S2701_C04_011", # under 19 uninsured
+  "S2704_C02_017", # under 6 public insurance
+  "S2704_C02_018", # 6-18 public insurance
+  "S2701_C02_011" # under 19 population
+)
+
+#If you are making more than 500 requests in a day, then you need a key. This requirement is specific to this API, some might require it for each request. 
+#census_api_key()
+
+demo <-
+  get_acs(
+    geography = "county",
+    variables = acs_variables,
+    survey = "acs5",
+    year = 2023
+  )
+
+```
+
+#### **Challenge: Reshape Data**
+
+`get_acs()` returns long data, but we need it in wide format to calculate the proportion of VFC eligible population and then join it with the vaccination data. 
+
+```{r reshape acs data}
+
+# set meaningful names to use going forward
+acs_names <- c("uninsured","public_under6","public_618", "tot_population")
+recode <- setNames(acs_variables, acs_names)
+
+demo_wide <- 
+# pivot table
+demo |>
+  select(GEOID, variable, estimate) |>
+  pivot_wider(names_from = variable, values_from = estimate) |>
+  rename(any_of(recode)) |>
+  mutate(tot_VFC = uninsured+public_under6+public_618,
+          p_VFC = tot_VFC/tot_population)
+# or use rowwise with a function
+  # rowwise() |>
+  # mutate(tot_VFC = sum(uninsured,public_under6,public_618),
+  #        p_VFC = tot_VFC/tot_population)
+```
+
+### 3. Joining data
+
+We downloaded the variables for all counties in the U.S. but the vaccination data is only a subset of counties. We want to join the two data sets and keep ACS data for counties that appear in the vaccination data. This is a filtering join. 
+
+First, let's check that we have a key or the same column in each data set.
+```{r finding key}
+glimpse(demo_wide)
+glimpse(vax)
+```
+
+Our key is the county FIPS code, but the ACS data is a character while the vax data is a number. Since FIPS codes have leading zeros it is important to keep them as characters. 
+
+Let's convert the vax FIPS:
+
+ - to character 
+ - add the leading zero back in
+ - change the name to GEOID
+
+```{r vax key prep}
+vax <- 
+vax |>
+  mutate(GEOID = str_pad(
+    as.character(FIPS),
+    width = 5,
+    side = "left",
+    pad = "0"
+  ))
+```
+
+```{r join}
+d <- 
+vax |>
+  left_join(demo_wide) |>
+  #keep col of interest
+  select(State, County, GEOID, SY2022_23, tot_VFC, tot_population, p_VFC)
+```
+
+### 3. Visualize Data! 
+
+We can visualize the data by a simple scatter plot of proportion VFC eligible vs. vaccination coverage. 
+
+```{r scatter plot}
+d |>
+  ggplot(aes(y = p_VFC, x = SY2022_23)) +
+  geom_point()
+```
+
+We can also look at vaccination coverage on a map. The final great feature about tidycensus is that is also allows you to easily download the corresponding shape files by setting `geometry = TRUE`. 
+
+```{r map}
+county_geo <- 
+  get_acs(
+    geography = "county",
+    variables = acs_variables[1],
+    geometry = TRUE,
+    survey = "acs5",
+    year = 2023
+  ) |>
+  tigris::shift_geometry()|>
+  select(GEOID, geometry) 
+
+county_geo |>  
+left_join(d) |>
+  ggplot(aes(fill = SY2022_23)) +
+  geom_sf() +
+  scale_fill_distiller(palette = "BuGn",
+                      direction = 1,
+                      na.value = "grey85") +
+  theme_void()
+
+```
+
+Full citation:
+Dong E, Saiyed S, Nearchou A, Okura Y, Gardner LM. Trends in County-Level MMR Vaccination Coverage in Children in the United States. JAMA. Published online June 02, 2025. doi:10.1001/jama.2025.8952
+
+### API Afterword 
+
+Many public health data sets use SoDA. This activity was originally written to get data from data.cdc.gov using the `RSocrata` package. Unfortunately, the package was removed from CRAN in April 2025. It is not clear if the issues will be fixed prior to re-publishing on CRAN. For the sake of working with SoDA, we can install the package from github.
+
+Below is the template needed to request the [NNDSS weekly data from data.cdc.gov](https://data.cdc.gov/NNDSS/NNDSS-Weekly-Data/x9gk-5huc/about_data) using `RSocrata`. You will need to set up an account and create an app token. 
+
+```{r RSocrate}
+install.packages("devtools")
+devtools::install_github("Chicago/RSocrata")
+
+library("RSocrata")
+
+df <- read.socrata(
+  "https://data.cdc.gov/resource/x9gk-5huc.json",
+  app_token = "YOURAPPTOKENHERE",
+  email     = "user@example.com",
+  password  = "fakepassword"
+)
+
+```
+
+Alternatively, data.cdc.gov allows for data to be returned as a csv. So we can get the URI for csv format via the API endpoint tool. Let's try loading this data with functions from the `httr2` and then `httr` packages. 
+
+```{r httr 1v2}
+cdc_url <- "https://data.cdc.gov/resource/x9gk-5huc.csv"
+
+# Using httr2
+NNDSS_v1 <-
+  request(cdc_url) |>
+  req_perform()
+
+#Extract response
+NNDSS_v1 |>
+  resp_body_string() |>
+  glimpse()
+
+# Using httr
+NNDSS_v2 <- 
+  httr::GET(url = cdc_url)
+#Extract response
+httr::content(NNDSS_v2)
+```
+
+#### **Challenge: Pulling data from Socrata Open Data API  (SoDA)**
+
+You may have noticed that the response from data.cdc.gov is only 1000 rows. This is the default limit. We can either change the limit or, if appropriate, narrow our request. 
+
+(a) Read through the API documentation to determine the correct URI for NNDSS data from 2025 in Connecticut for anthrax. How many lines are returned? Put it in the chat.  
+
+```{r}
+cdc_url <- "https://data.cdc.gov/resource/x9gk-5huc.csv"
+
+query_params <- 
+"states=Connecticut&year=2025&label=Anthrax"
+
+q_url <- paste0(cdc_url, "?", query_params)
+httr2::url_parse(q_url)
+
+q_NNDSS <- 
+httr::GET(url = q_url)
+
+httr::content(q_NNDSS)
+```
+
+26 lines are returned. 
+
+(b) Use the `url_parse` function to describe the query used to narrow the request. 
+
+```{r figure out query}
+
+httr2::url_parse("https://data.cdc.gov/resource/x9gk-5huc.csv?$query=SELECT%20states%2C%20year%2C%20week%2C%20label%2C%20m1%2C%20m1_flag%2C%20m2%2C%20m2_flag%2C%20m3%2C%20m3_flag%2C%20m4%2C%20m4_flag%2C%20location1%2C%20location2%2C%20sort_order%2C%20geocode%20WHERE%20(upper(%60year%60)%20LIKE%20'%252025%25')%20AND%20(upper(%60label%60)%20LIKE%20'%25MEASLES%25')%20AND%20(upper(%60location1%60)%20LIKE%20'%25TEXAS%25')%20ORDER%20BY%20sort_order%20ASC")
+
+
+```
+
+This query asks for measles cases in Texas for 2025.
