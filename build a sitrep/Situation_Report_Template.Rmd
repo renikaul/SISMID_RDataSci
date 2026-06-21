@@ -1,0 +1,260 @@
+---
+title: "Situation Report"
+author: "YOUR NAME"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    code_folding: show
+    toc: true
+    toc_float: true
+    theme: united
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+In this activity, you will work in groups to create a situation report (SitRep) addressing the following research question:
+
+**How did COVID-19 mortality rates differ along the Social Vulnerability Index (SVI) spectrum in 2020?**
+
+### Learning Objectives
+
+- Gather: Import data from multiple source types (.csv, API)
+- Tidy: Explore, wrangle, clean, transform, visualize data
+- Analyze: Combine more than one dataset to address research question
+- Communicate: Use figures, tables, and text
+
+## Setup
+It can be helpful to start an R project for an analysis of this scope. Here are [posit's instructions](https://support.posit.co/hc/en-us/articles/200526207-Using-RStudio-Projects) to do so. This ensures your parent directory for this SitRep contains all the necessary data and output and works seamlessly with the `here()` function. 
+
+### Notes about the YAML header: 
+This header will automatically udpate the date of the SitRep to the date that you "knit" it, i.e., publish from your source .Rmd to the .html output. 
+
+The design of this allows for an interactive html output with multi-level headings automatically creating a table of contents (toc=TRUE). It also has the code showing by default, but allows the end user to have the option to hide code chunks (code_folding=show).
+
+## Load packages
+
+Common useful packages for data analysis include:
+
+- `tidyverse` (includes dplyr, ggplot2, readr, tidyr, etc.)
+- `lubridate` (date manipulation, useful to convert dates to CDC Epiweeks)
+
+Useful functions: 
+
+- `install.packages()`
+- `library()`
+
+```{r load_packages, message=FALSE}
+# notice the R code chunk header ```{r ...}
+# tip: give these unique descriptive names (helpful for debugging)
+# also can provide chunk-specific preferences
+# e.g., not printing package loading messages in your output with message=FALSE
+
+
+# uncomment and replace with package of interest that is not already installed
+# install.packages("tidyverse")
+
+# otherwise load pre-installed packages
+library(tidyverse)
+library(here) # sets your working directory to your parent .Rproj or .git containing folder
+
+# load additional packages...
+
+```
+
+## Load data 
+
+You will work with multiple datasets:
+
+- [COVID-19 cases and deaths](https://data.cdc.gov/dataset/Weekly-United-States-COVID-19-Cases-and-Deaths-by-/yviw-z6j5/about_data)
+- [Social Vulnerability Index (SVI)](https://www.atsdr.cdc.gov/place-health/php/svi/svi-data-documentation-download.html)
+- [County population estimates](https://www.census.gov/data/tables/time-series/demo/popest/2020s-counties-total.html)
+
+Can download directly or use API (note API default download limits)
+
+Useful functions:
+- `read_csv()`
+
+```{r load_data}
+
+# load COVID-19 case and death data
+# e.g., read_csv(here("data/YOURFILENAME.csv"))
+
+# load SVI data
+
+# load County population data
+
+
+```
+
+## Inspect and Understand Data
+
+- Examine structure of datasets (wide/long)
+- Identify key variables
+- What does each row represent?
+
+Useful functions:
+
+- `glimpse()` from `dplyr`
+- `head()` from base R
+- `summary()`
+- `nrow()`
+- `ncol()`
+- `distinct()`
+- `View()`
+- `table()`
+- `histogram()`
+
+
+```{r}
+
+```
+
+### Data cleaning
+
+- Check for missingness, variable storage type
+- Remove extraneous variables, or observations outside of scope of analysis
+
+Useful functions:
+
+- `select()`
+- `rename()`
+- `mutate()`
+- `case_when()`
+- `if_else()`
+- `filter()`
+- `drop_na()`
+- `replace_na()`
+- `separate()`
+- `unite()`
+
+```{r}
+
+```
+
+## Merging
+
+- Join data sets together
+- What kind of join do you think you should use?
+- What are the joining variables (common to all datasets?)
+- How do you check the merge worked properly? 
+Hint: Does your output have the expected dimensions? Are any new NAs introduced?
+
+
+Useful functions:
+
+- `left_join()`
+- `inner_join()`
+- `right_join()`
+- `full_join()`
+
+```{r}
+
+
+```
+
+
+## Create derived variables
+
+- Need to create a variable for COVID-19 mortality rates
+- What denominator do you need for your rates?
+
+Useful functions:
+- `rename()`
+- `mutate()`
+- `case_when()`
+- `if_else()`
+
+## Categorize SVI 
+
+Check the [2020 SVI data dictionary](https://svi.cdc.gov/map25/data/docs/SVI2020Documentation_08.05.22.pdf).
+Which variables from the social vulnerability index make most sense to include in the analysis? Do you want to make your own composite variable?
+
+```{r}
+
+
+```
+
+## Exploratory Analysis
+
+- Summary statistics for key variables
+- Plot distributions
+
+Useful functions:
+
+- `mean()`
+- `sd()`
+- `median()`
+- `IQR()`
+- `histogram()`
+- `ggplot()` + `geom_density()`
+- `summarize()`
+
+```{r}
+
+
+```
+
+## Create visualizations
+
+- Think about your audience
+- What are your key variables? Continuous? Categorical?
+
+Check out the [ggplot cheat sheet](https://rstudio.github.io/cheatsheets/data-visualization.pdf) for inspiration.
+
+Useful functions:
+
+Core ggplot2:
+
+- `ggplot()`
+- `aes()`
+
+Geoms:
+
+- `geom_point()`
+- `geom_line()`
+- `geom_bar()`
+- `geom_col()`
+- `geom_boxplot()`
+
+Scales + labels:
+
+- `labs()`
+- `scale_y_continuous()`
+- `theme_minimal()`
+
+Faceting:
+
+- `facet_wrap()`
+
+```{r}
+
+```
+
+## Create summary table
+
+Useful functions
+- `group_by()`
+- `summarize()`
+- `arrange`
+- `pivot_wider()`
+- `pivot_longer()`
+
+Other useful packages & functions include `tbl_summary()` from the `gtsummary` package. 
+
+```{r}
+
+```
+
+## Write key findings
+
+- Summarize main findings (bullet points)
+- Interpretation 
+- Limitations
+
