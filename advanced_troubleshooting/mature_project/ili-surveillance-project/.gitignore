@@ -1,0 +1,9 @@
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+data/raw/*.csv
+data/processed/*.csv
+reports/output/*.pdf
+reports/output/*.png
+

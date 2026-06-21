@@ -1,0 +1,73 @@
+---
+title: "County ILI Surveillance Report"
+output: pdf_document
+params:
+  county_name: "Unknown County"
+  county_summary: NULL
+  county_weekly: NULL
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+
+county_summary <- params$county_summary
+county_weekly  <- params$county_weekly
+```
+
+# `r params$county_name` County — Influenza-Like Illness Surveillance Report
+
+**Report generated:** `r format(Sys.Date(), '%B %d, %Y')`
+
+## Summary
+
+```{r}
+knitr::kable(
+  county_summary %>%
+    select(
+      Population               = population,
+      `Latest Week Cases`      = latest_cases,
+      `Case Rate per 100k`     = case_rate_per_100k,
+      `Z-score`                = z_score,
+      Priority                 = priority
+    ),
+  align = "c"
+)
+```
+
+## Weekly Case Trend
+
+```{r fig.width=6, fig.height=3.5}
+ggplot(county_weekly, aes(x = week, y = cases)) +
+  geom_line(color = "#1f77b4", linewidth = 1) +
+  geom_point(color = "#1f77b4", size = 2) +
+  labs(
+    x = "Epi Week",
+    y = "Reported Cases",
+    title = paste(params$county_name, "Weekly ILI Cases")
+  ) +
+  theme_minimal()
+```
+
+## Recommendation
+
+```{r results='asis'}
+priority <- county_summary$priority[1]
+
+recommendation_text <- case_when(
+  priority == "High - deploy resources now" ~
+    "This county is showing a statistically significant spike in cases relative to its recent baseline. Immediate deployment of additional surveillance and response resources is recommended.",
+  priority == "Medium - increase monitoring" ~
+    "This county is showing an elevated but not yet critical deviation from baseline. Increased monitoring frequency is recommended.",
+  priority == "Low - routine surveillance" ~
+    "This county's case counts are within the expected range. Continue routine surveillance.",
+  TRUE ~
+    "A data quality issue was detected in this county's most recent report. Follow up with local reporting staff to confirm the figures before drawing conclusions."
+)
+
+cat(recommendation_text)
+```
+
+---
+
+*This report was generated automatically from state ILI surveillance data. For questions, contact the state epidemiology office.*

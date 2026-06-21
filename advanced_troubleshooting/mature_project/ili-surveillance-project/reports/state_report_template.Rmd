@@ -1,0 +1,146 @@
+---
+title: "Statewide ILI Surveillance Report"
+output: pdf_document
+params:
+  surveillance_data: NULL
+  priority_table: NULL
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+
+# data required for report
+surveillance_data <- params$surveillance_data
+priority_table  <- params$priority_table
+
+#instead of using params we can pull out needed information from the data supplied
+current_week <- max(surveillance_data$week)
+```
+
+# Influenza-Like Illness Surveillance Report By County and Epi Week
+
+**Report generated:** `r format(Sys.Date(), '%B %d, %Y')` up to Epi week `r current_week`
+
+## Summary
+
+```{r}
+knitr::kable(
+  priority_table %>%
+    select(
+      County                   = county,
+      Population               = population,
+      `Latest Week Cases`      = latest_cases,
+      `Case Rate per 100k`     = case_rate_per_100k,
+      `Z-score`                = z_score,
+      Priority                 = priority
+    ),
+  align = "c"
+) 
+```
+Counties report weekly case data for prior Epi week to state PHD by noon Wednesday.
+$\\$
+$\\$
+
+```{r fig.width=6, fig.height=3.5}
+
+priority_colors <- c(
+  "High - deploy resources now"  = "#d62728",
+  "Medium - increase monitoring" = "#ff7f0e",
+  "Low - routine surveillance"   = "#2ca02c",
+  "Data issue - needs follow-up" = "#7f7f7f"
+)
+
+
+# Process and plot the data
+priority_table %>%
+  # 1. Create a temporary numeric ordering column where NA becomes -1
+  mutate(order_helper = replace_na(case_rate_per_100k, -1)) %>%
+  # 2. Reorder the county factor based on our bulletproof helper column
+  mutate(county = fct_reorder(county, order_helper)) %>%
+  # 3. Replace NA with the maximum value so Elkridge fills the full bar width
+  mutate(case_rate_per_100k = replace_na(case_rate_per_100k, max(case_rate_per_100k, na.rm = TRUE))) %>%
+  # 4. Generate the text string ONLY for the data issue row
+  mutate(bar_label = if_else(priority == "Data issue - needs follow-up", 
+                             "Data Error, Follow Up Required", 
+                             "")) %>%
+  # 5. Build the ggplot
+  ggplot(aes(x = county, y = case_rate_per_100k, fill = priority)) +
+  geom_col() +
+  # Add bold text inside the bar, slightly shifted right from the axis boundary
+  geom_text(aes(label = bar_label), y = 5, hjust = 0, color = "white", fontface = "bold") +
+  scale_fill_manual(values = priority_colors) +
+  coord_flip() +
+  labs(
+    title = "ILI Case Rate per 100,000 Residents by County",
+    subtitle = paste("For most current data, epi week:", current_week ),
+    x = NULL,
+    y = "Cases per 100,000",
+    fill = "Resource Priority"
+  ) +
+  theme_minimal()
+```
+
+
+## Weekly Case Trend
+
+```{r fig.width=6, fig.height=3.5}
+
+# 1. Standardize the cases into a rate per 100,000 people
+surveillance_data %>%
+  mutate(case_rate_per_100k = (cases / population) * 100000) %>%
+  # 2. Initialize the ggplot
+  ggplot(aes(x = week, y = case_rate_per_100k, color = county, group = county)) +
+  # Add lines and small points at each week mark
+  geom_line(linewidth = 1) +
+  geom_point(size = 1.5) +
+  # 3. Clean up the design
+  scale_x_continuous(breaks = 1:12) +  # Forces whole numbers on the week axis
+  labs(
+    title = "Weekly ILI Case Rate Trends by County",
+    subtitle = "Standardized comparison across epi weeks",
+    x = "Epi Week",
+    y = "Cases per 100,000 Residents",
+    color = "County"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.minor = element_blank(), # Removes unnecessary grid lines
+    legend.position = "right"
+  )
+
+```
+
+
+```{r fig.width=6, fig.height=3.5}
+
+# 1. Initialize the ggplot using raw cases
+surveillance_data %>%
+  ggplot(aes(x = week, y = cases, color = county, group = county)) +
+  
+  # Add lines and small points at each week mark
+  geom_line(linewidth = 1) +
+  geom_point(size = 1.5) +
+  
+  # 2. Clean up the axes and design
+  scale_x_continuous(breaks = min(surveillance_data$week):max(surveillance_data$week)) +
+  labs(
+    title = "Weekly ILI Absolute Case Trends by County",
+    subtitle = "Raw case counts by epi week",
+    x = "Epi Week",
+    y = "Number of Cases",
+    color = "County"
+  ) +
+  theme_minimal() +
+  theme(
+    panel.grid.minor = element_blank(), # Removes unnecessary background grid lines
+    legend.position = "right"
+  )
+
+```
+
+
+
+---
+
+*This report was generated automatically from state ILI surveillance data. For questions, contact the state epidemiology office.*
