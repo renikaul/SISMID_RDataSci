@@ -10,4 +10,6 @@ library(testthat)
 library(here)
 
 source(here::here("R", "outbreak_functions.R"))
+source(here::here("R", "render_functions.R"))
+
 test_dir(here::here("tests", "testthat"))

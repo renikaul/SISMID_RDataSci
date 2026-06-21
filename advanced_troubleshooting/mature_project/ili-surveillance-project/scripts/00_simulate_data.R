@@ -8,7 +8,7 @@
 # finds the project root by locating ili-surveillance-project.Rproj.
 
 
-#load mutiple libraries in single call using pacman library p_load function
+#load mutiple libraries in single call using pacman library p_load function ----
 pacman::p_load(
   tidyverse,
   here)
@@ -62,6 +62,34 @@ simulate_surveillance_data <- function(counties,
   surveillance
 }
 
+
+#' Save surveillance data as one CSV per county
+#'
+#' Mirrors how state surveillance systems actually work: each county health
+#' department submits its own file rather than everyone sharing one
+#' spreadsheet. The state then has to aggregate those files back together
+#' (see aggregate_county_files()).
+#'
+#' @param surveillance_data long-format tibble: county, population, week, cases
+#' @param output_dir directory to write one <county>.csv file per county into
+#' @return (invisibly) a character vector of the file paths written
+save_county_csv <- function(data,
+                            output_dir) {
+  
+  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+  
+  county_names <- unique(data$county)
+  
+  paths <- county_names %>%
+    map_chr(function(this_county) {
+      county_slice <- data %>% filter(county == this_county)
+      file_path <- file.path(output_dir, paste0(this_county, ".csv"))
+      write_csv(county_slice, file_path)
+      file_path
+    })
+  
+  invisible(paths)
+}
 # ---- 1. Simulate surveillance data -----------------------------------------
 
 counties    <- c("Adams", "Baxter", "Clearwater", "Dunmore", "Elkridge", "Fairview")
@@ -81,8 +109,11 @@ surveillance_data <- simulate_surveillance_data(
 surveillance_data <- surveillance_data %>%
   mutate(cases = if_else(county == "Elkridge" & week == 12, -3, cases))
 
+
+# ---- 2. Save data -----------------------------------------
 dir.create(here::here("data", "raw"), showWarnings = FALSE, recursive = TRUE)
-write_csv(surveillance_data, here::here("data", "raw", "surveillance_data.csv"))
+
+save_county_csv(data = surveillance_data, output_dir = here::here("data", "raw"))
 
 # Note: If you are planning on sourceing scripts, it can be useful to include a message at the end of the script
-#cat("Saved raw surveillance data to data/raw/surveillance_data.csv\n")
+#cat("Saved raw surveillance data to data/raw/[County].csv\n")

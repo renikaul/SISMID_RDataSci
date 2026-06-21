@@ -77,25 +77,29 @@ detect_outbreak <- function(weekly_cases, baseline_weeks = 8, threshold = 2) {
 #' @inheritParams detect_outbreak
 #' @return same fields as detect_outbreak(), plus `error` (NA if no error)
 safe_detect_outbreak <- function(weekly_cases, county_name = "unknown",
-                                  baseline_weeks = 8, threshold = 2) {
-  tryCatch(
-    {
-      result <- detect_outbreak(weekly_cases, baseline_weeks = baseline_weeks, threshold = threshold)
-      result$error <- NA_character_
-      result
-    },
-    error = function(e) {
-      warning(sprintf("Could not analyze %s: %s", county_name, conditionMessage(e)), call. = FALSE)
-      list(
-        latest_cases  = NA_real_,
-        baseline_mean = NA_real_,
-        baseline_sd   = NA_real_,
-        z_score       = NA_real_,
-        outbreak_flag = NA,
-        error         = conditionMessage(e)
+                                  baseline_weeks = 8, threshold = 2, catch = TRUE) {
+  if(catch == TRUE) {
+      tryCatch(
+        {
+          result <- detect_outbreak(weekly_cases, baseline_weeks = baseline_weeks, threshold = threshold)
+          result$error <- NA_character_
+          result
+        },
+        error = function(e) {
+          warning(sprintf("Could not analyze %s: %s", county_name, conditionMessage(e)), call. = FALSE)
+          list(
+            latest_cases  = NA_real_,
+            baseline_mean = NA_real_,
+            baseline_sd   = NA_real_,
+            z_score       = NA_real_,
+            outbreak_flag = NA,
+            error         = conditionMessage(e)
+          )
+        }
       )
-    }
-  )
+  } else {
+      result <- detect_outbreak(weekly_cases, baseline_weeks = baseline_weeks, threshold = threshold)
+  }
 }
 
 #' Translate outbreak detection results into a resource allocation priority

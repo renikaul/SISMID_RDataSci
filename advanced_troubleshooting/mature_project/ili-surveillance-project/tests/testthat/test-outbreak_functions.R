@@ -9,6 +9,7 @@
 library(testthat)
 library(tidyverse)
 
+# detect_outbreak behavior under different scenarios ----
 test_that("detect_outbreak flags a clear spike", {
   baseline <- rep(10, 8)            # 8 stable baseline weeks
   weekly_cases <- c(baseline, 40)   # then a spike to 40
@@ -63,13 +64,14 @@ test_that("safe_detect_outbreak catches errors instead of crashing", {
 })
 
 test_that("safe_detect_outbreak passes clean results through untouched", {
-  good_cases <- c(10, 10, 10, 10, 10, 10, 10, 10, 11)
+  good_cases <- c(10, 10, 10, 10, 11, 10, 10, 10, 10)
   result <- safe_detect_outbreak(good_cases, county_name = "TestCounty")
 
   expect_false(result$outbreak_flag)
   expect_true(is.na(result$error))
 })
 
+# recommend_resources behavior under different scenarios ----
 test_that("recommend_resources assigns priority tiers correctly", {
   fake_results <- tibble(
     county = c("A", "B", "C", "D"),
@@ -91,6 +93,7 @@ test_that("recommend_resources errors when required columns are missing", {
   expect_error(recommend_resources(bad_input), "missing required columns")
 })
 
+# rendering behavior under different scenarios ----
 test_that("get_county_report_inputs returns the right rows for a valid county", {
   pt <- tibble(
     county = c("Adams", "Baxter"),

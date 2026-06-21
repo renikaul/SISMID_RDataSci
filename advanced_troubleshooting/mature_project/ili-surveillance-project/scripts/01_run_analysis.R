@@ -20,9 +20,19 @@ source(here::here("R", "outbreak_functions.R"))
 
 # ---- 1. Load data submitted by each county -----------------
 
-#purr function 
+# create a list of the expected file names to load. Could also use list.files() 
+counties    <- c("Adams", "Baxter", "Clearwater", "Dunmore", "Fairview", "Elkridge")
+submitted_data <- here::here(file.path("data","raw", paste0(counties,".csv")))
+
+surveillance_data <-
+  submitted_data %>%
+    #make a list of csvs
+  purrr::map(readr::read_csv) %>%
+    #collapse into one tibble
+  list_rbind()
 
 # save long-format tibble of weekly cases, all counties in data/raw/surveillance_data.csv
+write_csv(surveillance_data, here::here("data", "raw", "surveillance_data.csv"))
 
 # ---- 2. Map detect_outbreak() over every county with purrr -----------------
 
@@ -43,8 +53,8 @@ outbreak_results <- county_data %>%
   map(function(df) {
     # pull out the county name from the df tibble
     county_name <- unique(df$county)
-    # apply the function of interest
-    result <- safe_detect_outbreak(df$cases, county_name = county_name)
+    # apply the function of interest, here I've included another argument 'catch' to turn on and off the tryCatch behavior
+    result <- safe_detect_outbreak(df$cases, county_name = county_name, catch = FALSE)
     # create a small, 1-row data frame summarizing this specific county's results.
     # because map() is looping, we will end up with a list of these small data frames.
     tibble(
